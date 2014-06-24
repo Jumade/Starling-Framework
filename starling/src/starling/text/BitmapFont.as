@@ -10,19 +10,17 @@
 
 package starling.text
 {
-    import flash.geom.Rectangle;
-    import flash.utils.Dictionary;
-    
-    import starling.display.Image;
-    import starling.display.QuadBatch;
-    import starling.display.Sprite;
-    import starling.textures.Texture;
-    import starling.textures.TextureSmoothing;
-    import starling.utils.HAlign;
-    import starling.utils.VAlign;
-    import starling.utils.cleanMasterString;
+import flash.geom.Rectangle;
+import flash.utils.Dictionary;
 
-    /** The BitmapFont class parses bitmap font files and arranges the glyphs 
+import starling.display.Image;
+import starling.display.Sprite;
+import starling.textures.Texture;
+import starling.textures.TextureSmoothing;
+import starling.utils.HAlign;
+import starling.utils.VAlign;
+
+/** The BitmapFont class parses bitmap font files and arranges the glyphs
      *  in the form of a text.
      *
      *  The class parses the XML format as it is used in the 
@@ -54,6 +52,7 @@ package starling.text
      */ 
     public class BitmapFont
     {
+        public var distanceFieldFont:Boolean = false;
         /** Use this constant for the <code>fontSize</code> property of the TextField class to 
          *  render the bitmap font in exactly the size it was created. */ 
         public static const NATIVE_SIZE:int = -1;
@@ -74,18 +73,19 @@ package starling.text
         private var mBaseline:Number;
         private var mOffsetX:Number;
         private var mOffsetY:Number;
-        private var mHelperImage:Image;
         private var mCharLocationPool:Vector.<CharLocation>;
-        
+
+        private var _dfSpread:Number = 1;
+
         /** Creates a bitmap font by parsing an XML file and uses the specified texture. 
          *  If you don't pass any data, the "mini" font will be created. */
-        public function BitmapFont(texture:Texture=null, fontXml:XML=null)
+        public function BitmapFont(texture:Texture=null, font:*=null)
         {
             // if no texture is passed in, we create the minimal, embedded font
-            if (texture == null && fontXml == null)
+            if (texture == null && font == null)
             {
                 texture = MiniBitmapFont.texture;
-                fontXml = MiniBitmapFont.xml;
+                font = MiniBitmapFont.xml;
             }
             
             mName = "unknown";
@@ -93,10 +93,13 @@ package starling.text
             mOffsetX = mOffsetY = 0.0;
             mTexture = texture;
             mChars = new Dictionary();
-            mHelperImage = new Image(texture);
+
             mCharLocationPool = new <CharLocation>[];
             
-            if (fontXml) parseFontXml(fontXml);
+            if (font && font is XML) parseFontXml(font);
+            else  if (font) parseFontStr(font);
+
+
         }
         
         /** Disposes the texture of the bitmap font! */
@@ -105,20 +108,80 @@ package starling.text
             if (mTexture)
                 mTexture.dispose();
         }
-        
+
+        private function getFirstVal(p_data:String,p_index:int):String
+        {
+            var startIndex:int =  p_data.indexOf("=",p_index);
+
+            var nextChar:String =  p_data.charAt(startIndex+1);
+
+            if(nextChar == '"')
+            {
+
+                return  p_data.substring(startIndex+2,p_data.indexOf('"',startIndex+2))
+            }else
+            {
+                return  p_data.substring(startIndex+1,p_data.indexOf(' ',startIndex+1));
+            }
+        }
+        private function parseFontStr(font:String):void
+        {
+            var scale:Number = mTexture.scale;
+            var frame:Rectangle = mTexture.frame;
+
+            var fontLines:Array = font.split("\n");
+
+            for each(var line:String in fontLines)
+            {
+                if(line == "")
+                    continue;
+
+                var lineid:String = line.substring(0,line.indexOf(" "));
+
+                if(lineid == "info")
+                {
+
+                    mName = getFirstVal(line,line.indexOf("face="));
+                    mSize = parseFloat(getFirstVal(line,line.indexOf("size="))) / scale;
+
+                } else if(lineid == "common")
+                {
+                    mLineHeight = parseFloat(getFirstVal(line,line.indexOf("lineHeight="))) / scale;
+                    mBaseline = parseFloat(getFirstVal(line,line.indexOf("base="))) / scale;
+
+                } else if(lineid == "char")
+                {
+                    var id:int = parseInt(getFirstVal(line,line.indexOf("id=")));
+                    var xOffset:Number = parseFloat(getFirstVal(line,line.indexOf("xoffset="))) / scale;
+                    var yOffset:Number = parseFloat(getFirstVal(line,line.indexOf("yoffset="))) / scale;
+                    var xAdvance:Number = parseFloat(getFirstVal(line,line.indexOf("xadvance="))) / scale;
+
+                    var region:Rectangle = new Rectangle();
+                    region.x = parseFloat(getFirstVal(line,line.indexOf("x="))) / scale + frame.x;
+                    region.y = parseFloat(getFirstVal(line,line.indexOf("y="))) / scale + frame.y;
+                    region.width  = parseFloat(getFirstVal(line,line.indexOf("width="))) / scale;
+                    region.height = parseFloat(getFirstVal(line,line.indexOf("height="))) / scale;
+
+                    var texture:Texture = Texture.fromTexture(mTexture, region);
+                    var bitmapChar:BitmapChar = new BitmapChar(id, texture, xOffset, yOffset, xAdvance);
+                    addChar(id, bitmapChar);
+                }
+
+            }
+
+        }
+
         private function parseFontXml(fontXml:XML):void
         {
             var scale:Number = mTexture.scale;
             var frame:Rectangle = mTexture.frame;
-            var frameX:Number = frame ? frame.x : 0;
-            var frameY:Number = frame ? frame.y : 0;
             
-            mName = cleanMasterString(fontXml.info.@face);
-            mSize = parseFloat(fontXml.info.@size) / scale;
-            mLineHeight = parseFloat(fontXml.common.@lineHeight) / scale;
-            mBaseline = parseFloat(fontXml.common.@base) / scale;
+            mName = fontXml.info.attribute("face");
+            mSize = parseFloat(fontXml.info.attribute("size")) / scale;
+            mLineHeight = parseFloat(fontXml.common.attribute("lineHeight")) / scale;
+            mBaseline = parseFloat(fontXml.common.attribute("base")) / scale;
             
-            if (fontXml.info.@smooth.toString() == "0")
+            if (fontXml.info.attribute("smooth").toString() == "0")
                 smoothing = TextureSmoothing.NONE;
             
             if (mSize <= 0)
@@ -129,16 +192,16 @@ package starling.text
             
             for each (var charElement:XML in fontXml.chars.char)
             {
-                var id:int = parseInt(charElement.@id);
-                var xOffset:Number  = parseFloat(charElement.@xoffset)  / scale;
-                var yOffset:Number  = parseFloat(charElement.@yoffset)  / scale;
-                var xAdvance:Number = parseFloat(charElement.@xadvance) / scale;
+                var id:int = parseInt(charElement.attribute("id"));
+                var xOffset:Number = parseFloat(charElement.attribute("xoffset")) / scale;
+                var yOffset:Number = parseFloat(charElement.attribute("yoffset")) / scale;
+                var xAdvance:Number = parseFloat(charElement.attribute("xadvance")) / scale;
                 
                 var region:Rectangle = new Rectangle();
-                region.x = parseFloat(charElement.@x) / scale + frameX;
-                region.y = parseFloat(charElement.@y) / scale + frameY;
-                region.width  = parseFloat(charElement.@width)  / scale;
-                region.height = parseFloat(charElement.@height) / scale;
+                region.x = parseFloat(charElement.attribute("x")) / scale + frame.x;
+                region.y = parseFloat(charElement.attribute("y")) / scale + frame.y;
+                region.width  = parseFloat(charElement.attribute("width")) / scale;
+                region.height = parseFloat(charElement.attribute("height")) / scale;
                 
                 var texture:Texture = Texture.fromTexture(mTexture, region);
                 var bitmapChar:BitmapChar = new BitmapChar(id, texture, xOffset, yOffset, xAdvance); 
@@ -147,9 +210,9 @@ package starling.text
             
             for each (var kerningElement:XML in fontXml.kernings.kerning)
             {
-                var first:int  = parseInt(kerningElement.@first);
-                var second:int = parseInt(kerningElement.@second);
-                var amount:Number = parseFloat(kerningElement.@amount) / scale;
+                var first:int = parseInt(kerningElement.attribute("first"));
+                var second:int = parseInt(kerningElement.attribute("second"));
+                var amount:Number = parseFloat(kerningElement.attribute("amount")) / scale;
                 if (second in mChars) getChar(second).addKerning(first, amount);
             }
         }
@@ -166,39 +229,6 @@ package starling.text
             mChars[charID] = bitmapChar;
         }
         
-        /** Returns a vector containing all the character IDs that are contained in this font. */
-        public function getCharIDs(result:Vector.<int>=null):Vector.<int>
-        {
-            if (result == null) result = new <int>[];
-
-            for(var key:* in mChars)
-                result[result.length] = int(key);
-
-            return result;
-        }
-
-        /** Checks whether a provided string can be displayed with the font. */
-        public function hasChars(text:String):Boolean
-        {
-            if (text == null) return true;
-
-            var charID:int;
-            var numChars:int = text.length;
-
-            for (var i:int=0; i<numChars; ++i)
-            {
-                charID = text.charCodeAt(i);
-
-                if (charID != CHAR_SPACE && charID != CHAR_TAB && charID != CHAR_NEWLINE &&
-                    charID != CHAR_CARRIAGE_RETURN && getChar(charID) == null)
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
         /** Creates a sprite that contains a certain text, made up by one image per char. */
         public function createSprite(width:Number, height:Number, text:String,
                                      fontSize:Number=-1, color:uint=0xffffff, 
@@ -226,7 +256,7 @@ package starling.text
         }
         
         /** Draws text into a QuadBatch. */
-        public function fillQuadBatch(quadBatch:QuadBatch, width:Number, height:Number, text:String,
+        public function fillQuadBatch(tf:TextField, width:Number, height:Number, text:String,
                                       fontSize:Number=-1, color:uint=0xffffff, 
                                       hAlign:String="center", vAlign:String="center",      
                                       autoScale:Boolean=true, 
@@ -235,7 +265,7 @@ package starling.text
             var charLocations:Vector.<CharLocation> = arrangeChars(width, height, text, fontSize, 
                                                                    hAlign, vAlign, autoScale, kerning);
             var numChars:int = charLocations.length;
-            mHelperImage.color = color;
+
             
             if (numChars > 8192)
                 throw new ArgumentError("Bitmap Font text is limited to 8192 characters.");
@@ -243,12 +273,9 @@ package starling.text
             for (var i:int=0; i<numChars; ++i)
             {
                 var charLocation:CharLocation = charLocations[i];
-                mHelperImage.texture = charLocation.char.texture;
-                mHelperImage.readjustSize();
-                mHelperImage.x = charLocation.x;
-                mHelperImage.y = charLocation.y;
-                mHelperImage.scaleX = mHelperImage.scaleY = charLocation.scale;
-                quadBatch.addImage(mHelperImage);
+
+
+                tf.addGlyphImage(charLocation.char.texture,color,charLocation.x,charLocation.y, charLocation.scale, distanceFieldFont,_dfSpread);
             }
         }
         
@@ -261,7 +288,7 @@ package starling.text
             if (text == null || text.length == 0) return new <CharLocation>[];
             if (fontSize < 0) fontSize *= -mSize;
             
-            var lines:Array = [];
+            var lines:Vector.<Vector.<CharLocation>>;
             var finished:Boolean = false;
             var charLocation:CharLocation;
             var numChars:int;
@@ -271,10 +298,11 @@ package starling.text
             
             while (!finished)
             {
-                lines.length = 0;
                 scale = fontSize / mSize;
                 containerWidth  = width / scale;
                 containerHeight = height / scale;
+                
+                lines = new Vector.<Vector.<CharLocation>>();
                 
                 if (mLineHeight <= containerHeight)
                 {
@@ -320,10 +348,6 @@ package starling.text
                             
                             if (charLocation.x + char.width > containerWidth)
                             {
-                                // when autoscaling, we must not split a word in half -> restart
-                                if (autoScale && lastWhiteSpace == -1)
-                                    break;
-
                                 // remove characters and add them again to next line
                                 var numCharsToRemove:int = lastWhiteSpace == -1 ? 1 : i - lastWhiteSpace;
                                 var removeIndex:int = currentLine.length - numCharsToRemove;
@@ -367,9 +391,14 @@ package starling.text
                 } // if (mLineHeight <= containerHeight)
                 
                 if (autoScale && !finished && fontSize > 3)
+                {
                     fontSize -= 1;
+                    lines.length = 0;
+                }
                 else
+                {
                     finished = true; 
+                }
             } // while (!finished)
             
             var finalLocations:Vector.<CharLocation> = new <CharLocation>[];
@@ -423,9 +452,9 @@ package starling.text
         public function get lineHeight():Number { return mLineHeight; }
         public function set lineHeight(value:Number):void { mLineHeight = value; }
         
-        /** The smoothing filter that is used for the texture. */ 
-        public function get smoothing():String { return mHelperImage.smoothing; }
-        public function set smoothing(value:String):void { mHelperImage.smoothing = value; } 
+        /** The smoothing filter that is used for the texture. */
+        public function get smoothing():String { return TextureSmoothing.BILINEAR; }
+        public function set smoothing(value:String):void {  }
         
         /** The baseline of the font. This property does not affect text rendering;
          *  it's just an information that may be useful for exact text placement. */
@@ -442,8 +471,10 @@ package starling.text
         public function get offsetY():Number { return mOffsetY; }
         public function set offsetY(value:Number):void { mOffsetY = value; }
 
-        /** The underlying texture that contains all the chars. */
-        public function get texture():Texture { return mTexture; }
+
+        public function set dfSpread(value:Number):void {
+            _dfSpread = value;
+        }
     }
 }
 

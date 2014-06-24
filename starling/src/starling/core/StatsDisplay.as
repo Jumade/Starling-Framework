@@ -10,19 +10,19 @@
 
 package starling.core
 {
-    import flash.system.System;
-    
-    import starling.display.BlendMode;
-    import starling.display.Quad;
-    import starling.display.Sprite;
-    import starling.events.EnterFrameEvent;
-    import starling.events.Event;
-    import starling.text.BitmapFont;
-    import starling.text.TextField;
-    import starling.utils.HAlign;
-    import starling.utils.VAlign;
-    
-    /** A small, lightweight box that displays the current framerate, memory consumption and
+import flash.system.System;
+
+import starling.display.BlendMode;
+import starling.display.Quad;
+import starling.display.Sprite;
+import starling.events.EnterFrameEvent;
+import starling.events.Event;
+import starling.text.BitmapFont;
+import starling.text.TextField;
+import starling.utils.HAlign;
+import starling.utils.VAlign;
+
+/** A small, lightweight box that displays the current framerate, memory consumption and
      *  the number of draw calls per frame. The display is updated automatically once per frame. */
     internal class StatsDisplay extends Sprite
     {
@@ -90,17 +90,13 @@ package starling.core
                             "\nMEM: " + mMemory.toFixed(mMemory < 100 ? 1 : 0) +
                             "\nDRW: " + (mTotalTime > 0 ? mDrawCount-2 : mDrawCount); // ignore self 
         }
-        
-        public override function render(support:RenderSupport, parentAlpha:Number):void
-        {
-            // The display should always be rendered with two draw calls, so that we can
-            // always reduce the draw count by that number to get the number produced by the 
-            // actual content.
-            
-            support.finishQuadBatch();
-            super.render(support, parentAlpha);
+        override public function render(support:RenderSupport, p_parentUpdateTransform:Boolean, p_parentUpdateColor:Boolean, p_draw:Boolean):void {
+
+            support.finishDraw();
+            super.render(support, p_parentUpdateTransform, p_parentUpdateColor, p_draw);
+
         }
-        
+
         /** The number of Stage3D draw calls per second. */
         public function get drawCount():int { return mDrawCount; }
         public function set drawCount(value:int):void { mDrawCount = value; }

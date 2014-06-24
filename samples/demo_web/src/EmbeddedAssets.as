@@ -33,6 +33,22 @@ package
         
         [Embed(source = "/fonts/1x/desyrel.png")]
         public static const desyrel:Class;
+
+
+        // DF Bitmap Fonts
+
+        [Embed(source="/fonts/df/segoe.fnt", mimeType="application/octet-stream")]
+        public static const segoe:Class;
+
+        [Embed(source = "/fonts/df/segoe_texture.png")]
+        public static const segoe_texture:Class;
+
+         // Particle
+        [Embed(source="/particle/particle1.pex", mimeType="application/octet-stream")]
+        public static const particle1:Class;
+
+        [Embed(source = "/particle/texture.png")]
+        public static const texture:Class;
         
         // Sounds
         

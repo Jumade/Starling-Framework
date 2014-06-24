@@ -10,20 +10,15 @@
 
 package starling.display
 {
-    import flash.geom.Matrix;
-    import flash.geom.Point;
-    import flash.geom.Rectangle;
-    import flash.system.Capabilities;
-    import flash.utils.getQualifiedClassName;
-    
-    import starling.core.RenderSupport;
-    import starling.core.starling_internal;
-    import starling.errors.AbstractClassError;
-    import starling.events.Event;
-    import starling.filters.FragmentFilter;
-    import starling.utils.MatrixUtil;
-    
-    use namespace starling_internal;
+import flash.geom.Matrix;
+import flash.geom.Point;
+import flash.geom.Rectangle;
+
+import starling.core.RenderSupport;
+import starling.core.starling_internal;
+import starling.events.Event;
+
+use namespace starling_internal;
     
     /**
      *  A DisplayObjectContainer represents a collection of display objects.
@@ -65,10 +60,8 @@ package starling.display
     public class DisplayObjectContainer extends DisplayObject
     {
         // members
+        protected var mChildren:Vector.<DisplayObject>;
 
-        private var mChildren:Vector.<DisplayObject>;
-        private var mTouchGroup:Boolean;
-        
         /** Helper objects. */
         private static var sHelperMatrix:Matrix = new Matrix();
         private static var sHelperPoint:Point = new Point();
@@ -80,11 +73,11 @@ package starling.display
         /** @private */
         public function DisplayObjectContainer()
         {
-            if (Capabilities.isDebugger && 
+           /* if (Capabilities.isDebugger &&
                 getQualifiedClassName(this) == "starling.display::DisplayObjectContainer")
             {
                 throw new AbstractClassError();
-            }
+            }   */
             
             mChildren = new <DisplayObject>[];
         }
@@ -94,7 +87,6 @@ package starling.display
         {
             for (var i:int=mChildren.length-1; i>=0; --i)
                 mChildren[i].dispose();
-            
             super.dispose();
         }
         
@@ -103,6 +95,8 @@ package starling.display
         /** Adds a child to the container. It will be at the frontmost position. */
         public function addChild(child:DisplayObject):DisplayObject
         {
+
+
             addChildAt(child, numChildren);
             return child;
         }
@@ -116,7 +110,7 @@ package starling.display
             {
                 if (child.parent == this)
                 {
-                    setChildIndex(child, index); // avoids dispatching events
+                    setChildIndex(child, index); // avoids dispatchingevents
                 }
                 else
                 {
@@ -127,7 +121,7 @@ package starling.display
                     else                      mChildren.splice(index, 0, child);
                     
                     child.setParent(this);
-                    child.dispatchEventWith(Event.ADDED, true);
+                   // child.dispatchEventWith(Event.ADDED, true);
                     
                     if (stage)
                     {
@@ -161,7 +155,7 @@ package starling.display
             if (index >= 0 && index < numChildren)
             {
                 var child:DisplayObject = mChildren[index];
-                child.dispatchEventWith(Event.REMOVED, true);
+                //child.dispatchEventWith(Event.REMOVED, true);
                 
                 if (stage)
                 {
@@ -269,42 +263,35 @@ package starling.display
         
         // other methods
         
-        /** @inheritDoc */ 
-        public override function getBounds(targetSpace:DisplayObject, resultRect:Rectangle=null):Rectangle
+        /** @inheritDoc */
+
+
+        public override function getCurrentTargetBound(resultRect:Rectangle):void
         {
-            if (resultRect == null) resultRect = new Rectangle();
-            
+
+
             var numChildren:int = mChildren.length;
-            
-            if (numChildren == 0)
+            var i:int = 0;
+            for (i; i<numChildren; ++i)
             {
-                getTransformationMatrix(targetSpace, sHelperMatrix);
-                MatrixUtil.transformCoords(sHelperMatrix, 0.0, 0.0, sHelperPoint);
-                resultRect.setTo(sHelperPoint.x, sHelperPoint.y, 0, 0);
+                var child:DisplayObject = mChildren[i];
+                child.getCurrentTargetBound(resultRect);
             }
-            else if (numChildren == 1)
-            {
-                resultRect = mChildren[0].getBounds(targetSpace, resultRect);
-            }
-            else
-            {
-                var minX:Number = Number.MAX_VALUE, maxX:Number = -Number.MAX_VALUE;
-                var minY:Number = Number.MAX_VALUE, maxY:Number = -Number.MAX_VALUE;
-                
-                for (var i:int=0; i<numChildren; ++i)
-                {
-                    mChildren[i].getBounds(targetSpace, resultRect);
-                    minX = minX < resultRect.x ? minX : resultRect.x;
-                    maxX = maxX > resultRect.right ? maxX : resultRect.right;
-                    minY = minY < resultRect.y ? minY : resultRect.y;
-                    maxY = maxY > resultRect.bottom ? maxY : resultRect.bottom;
-                }
-                
-                resultRect.setTo(minX, minY, maxX - minX, maxY - minY);
-            }                
-            
-            return resultRect;
+
         }
+
+
+        override public function updateBound():void {
+            super.updateBound();
+            var numChildren:int = mChildren.length;
+            var i:int = 0;
+            for (i; i<numChildren; ++i)
+            {
+                var child:DisplayObject = mChildren[i];
+                child.updateBound();
+            }
+        }
+
         
         /** @inheritDoc */
         public override function hitTest(localPoint:Point, forTouch:Boolean=false):DisplayObject
@@ -312,50 +299,51 @@ package starling.display
             if (forTouch && (!visible || !touchable))
                 return null;
             
-            var target:DisplayObject = null;
-            var localX:Number = localPoint.x;
-            var localY:Number = localPoint.y;
-            var numChildren:int = mChildren.length;
 
+            var numChildren:int = mChildren.length;
             for (var i:int=numChildren-1; i>=0; --i) // front to back!
             {
                 var child:DisplayObject = mChildren[i];
-                getTransformationMatrix(child, sHelperMatrix);
-                
-                MatrixUtil.transformCoords(sHelperMatrix, localX, localY, sHelperPoint);
-                target = child.hitTest(sHelperPoint, forTouch);
+                var target:DisplayObject = child.hitTest(localPoint, forTouch);
                 
                 if (target)
-                    return forTouch && mTouchGroup ? this : target;
+                    return target;
             }
             
             return null;
         }
-        
-        /** @inheritDoc */
-        public override function render(support:RenderSupport, parentAlpha:Number):void
+        public override function setWorldBlendmode():void
         {
-            var alpha:Number = parentAlpha * this.alpha;
+            super.setWorldBlendmode();
+
             var numChildren:int = mChildren.length;
-            var blendMode:String = support.blendMode;
-            
+
             for (var i:int=0; i<numChildren; ++i)
             {
                 var child:DisplayObject = mChildren[i];
-                
-                if (child.hasVisibleArea)
-                {
-                    var filter:FragmentFilter = child.filter;
+                child.setWorldBlendmode();
+            }
+        }
+        public override  function set blendMode(value:String):void {
 
-                    support.pushMatrix();
-                    support.transformMatrix(child);
-                    support.blendMode = child.blendMode;
-                    
-                    if (filter) filter.render(child, support, alpha);
-                    else        child.render(support, alpha);
-                    
-                    support.blendMode = blendMode;
-                    support.popMatrix();
+            mBlendMode = value;
+            setWorldBlendmode();
+        }
+        
+        /** @inheritDoc */
+        public override function render(support:RenderSupport, p_parentUpdateTransform:Boolean, p_parentUpdateColor:Boolean, p_draw:Boolean):void
+        {
+            p_parentUpdateTransform = updateTransform(p_parentUpdateTransform);
+            p_parentUpdateColor = updateColor(p_parentUpdateColor);
+
+            var numChildren:int = mChildren.length;
+
+            for (var i:int=0; i<numChildren; ++i)
+            {
+                var child:DisplayObject = mChildren[i];
+                if (child.mVisible)
+                {
+                    child.render(support, p_parentUpdateTransform, p_parentUpdateColor, p_draw && hasVisibleArea);
                 }
             }
         }
@@ -393,13 +381,6 @@ package starling.display
         /** The number of children of this container. */
         public function get numChildren():int { return mChildren.length; }
         
-        /** If a container is a 'touchGroup', it will act as a single touchable object.
-         *  Touch events will have the container as target, not the touched child.
-         *  (Similar to 'mouseChildren' in the classic display list, but with inverted logic.)
-         *  @default false */
-        public function get touchGroup():Boolean { return mTouchGroup; }
-        public function set touchGroup(value:Boolean):void { mTouchGroup = value; }
-
         // helpers
         
         private static function mergeSort(input:Vector.<DisplayObject>, compareFunc:Function, 

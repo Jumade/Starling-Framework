@@ -10,15 +10,14 @@
 
 package starling.events
 {
-    import flash.geom.Matrix;
-    import flash.geom.Point;
-    
-    import starling.core.starling_internal;
-    import starling.display.DisplayObject;
-    import starling.utils.MatrixUtil;
-    import starling.utils.formatString;
-    
-    use namespace starling_internal;
+import flash.geom.Matrix;
+import flash.geom.Point;
+
+import starling.core.starling_internal;
+import starling.display.DisplayObject;
+import starling.utils.formatString;
+
+use namespace starling_internal;
 
     /** A Touch object contains information about the presence or movement of a finger 
      *  or the mouse on the screen.
@@ -73,8 +72,7 @@ package starling.events
         public function getLocation(space:DisplayObject, resultPoint:Point=null):Point
         {
             if (resultPoint == null) resultPoint = new Point();
-            space.base.getTransformationMatrix(space, sHelperMatrix);
-            return MatrixUtil.transformCoords(sHelperMatrix, mGlobalX, mGlobalY, resultPoint); 
+            return space.globalToLocal(new Point(mGlobalX,mGlobalY), resultPoint);
         }
         
         /** Converts the previous location of a touch to the local coordinate system of a display 
@@ -83,8 +81,7 @@ package starling.events
         public function getPreviousLocation(space:DisplayObject, resultPoint:Point=null):Point
         {
             if (resultPoint == null) resultPoint = new Point();
-            space.base.getTransformationMatrix(space, sHelperMatrix);
-            return MatrixUtil.transformCoords(sHelperMatrix, mPreviousGlobalX, mPreviousGlobalY, resultPoint);
+            return space.globalToLocal(new Point(mPreviousGlobalX,mPreviousGlobalY), resultPoint);
         }
         
         /** Returns the movement of the touch between the current and previous location. 

@@ -10,12 +10,12 @@
 
 package starling.text
 {
-    import flash.utils.Dictionary;
-    
-    import starling.display.Image;
-    import starling.textures.Texture;
+import flash.utils.Dictionary;
 
-    /** A BitmapChar contains the information about one char of a bitmap font.  
+import starling.display.Image;
+import starling.textures.Texture;
+
+/** A BitmapChar contains the information about one char of a bitmap font.
      *  <em>You don't have to use this class directly in most cases. 
      *  The TextField class contains methods that handle bitmap fonts for you.</em>    
      */ 

@@ -26,6 +26,8 @@ package scenes
             var button:RoundButton = new RoundButton(Game.assets.getTexture("starling_round"));
             button.x = Constants.CenterX - int(button.width / 2);
             button.y = 150;
+
+
             addChild(button);
         }
     }

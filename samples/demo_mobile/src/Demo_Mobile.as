@@ -44,7 +44,7 @@ package
             
             Starling.multitouchEnabled = true;  // useful on mobile devices
             Starling.handleLostContext = !iOS;  // not necessary on iOS. Saves a lot of memory!
-            
+
             // create a suitable viewport for the screen size
             // 
             // we develop the game in a *fixed* coordinate system of 320x480; the game might 
@@ -65,6 +65,8 @@ package
             assets.verbose = Capabilities.isDebugger;
             assets.enqueue(
                 appDir.resolvePath("audio"),
+                appDir.resolvePath("particle"),
+                appDir.resolvePath("fonts/df"),
                 appDir.resolvePath(formatString("fonts/{0}x", scaleFactor)),
                 appDir.resolvePath(formatString("textures/{0}x", scaleFactor))
             );

@@ -25,10 +25,11 @@ package utils
             if (forTouch && (!visible || !touchable)) 
                 return null; 
             
+
             // get center of button
             var bounds:Rectangle = this.bounds;
-            var centerX:Number = bounds.width / 2;
-            var centerY:Number = bounds.height / 2;
+            var centerX:Number = bounds.x +bounds.width / 2;
+            var centerY:Number = bounds.y + bounds.height / 2;
             
             // calculate distance of localPoint to center. 
             // we keep it squared, since we want to avoid the 'sqrt()'-call.

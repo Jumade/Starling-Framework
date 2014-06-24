@@ -22,8 +22,7 @@ package starling.utils
             for (i=args.length; i<maxNumArgs; ++i)
                 args[i] = null;
 
-            if (args.length == maxNumArgs) func.apply(null, args);
-            else func.apply(null, args.slice(0, maxNumArgs));
+            func.apply(null, args.slice(0, maxNumArgs));
         }
     }
 }

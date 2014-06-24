@@ -42,8 +42,7 @@ package utils
             // create progress bar quad
             
             mBar = new Quad(width - 2*padding, height - 2*padding, 0xeeeeee);
-            mBar.setVertexColor(2, 0xaaaaaa);
-            mBar.setVertexColor(3, 0xaaaaaa);
+
             mBar.x = padding;
             mBar.y = padding;
             mBar.scaleX = 0;

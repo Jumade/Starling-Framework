@@ -10,18 +10,17 @@
 
 package starling.display
 {
-    import flash.display.BitmapData;
-    import flash.errors.IllegalOperationError;
-    import flash.geom.Point;
-    
-    import starling.core.RenderSupport;
-    import starling.core.Starling;
-    import starling.core.starling_internal;
-    import starling.events.EnterFrameEvent;
-    import starling.events.Event;
-    import starling.filters.FragmentFilter;
-    
-    use namespace starling_internal;
+import flash.display.BitmapData;
+import flash.errors.IllegalOperationError;
+import flash.geom.Point;
+
+import starling.core.RenderSupport;
+import starling.core.Starling;
+import starling.core.starling_internal;
+import starling.events.EnterFrameEvent;
+import starling.events.Event;
+
+use namespace starling_internal;
     
     /** Dispatched when the Flash container is resized. */
     [Event(name="resize", type="starling.events.ResizeEvent")]
@@ -68,6 +67,8 @@ package starling.display
             mColor = color;
             mEnterFrameEvent = new EnterFrameEvent(Event.ENTER_FRAME, 0.0);
             mEnterFrameListeners = new <DisplayObject>[];
+            mBlendMode = "normal";
+            worldBlendmode =  "normal";
         }
         
         /** @inheritDoc */
@@ -94,45 +95,31 @@ package starling.display
             if (target == null) target = this;
             return target;
         }
-        
-        /** Draws the complete stage into a BitmapData object.
-         *
-         *  <p>If you encounter problems with transparency, start Starling in BASELINE profile
-         *  (or higher). BASELINE_CONSTRAINED might not support transparency on all platforms.
-         *  </p>
-         *
-         *  @param destination: If you pass null, the object will be created for you.
-         *                      If you pass a BitmapData object, it should have the size of the
-         *                      back buffer (which is accessible via the respective properties
-         *                      on the Starling instance).
-         *  @param transparent: If enabled, empty areas will appear transparent; otherwise, they
-         *                      will be filled with the stage color.
-         */
-        public function drawToBitmapData(destination:BitmapData=null,
-                                         transparent:Boolean=true):BitmapData
-        {
-            var support:RenderSupport = new RenderSupport();
-            var star:Starling = Starling.current;
-            
-            if (destination == null)
-                destination = new BitmapData(star.backBufferWidth, star.backBufferHeight, transparent);
-            
-            support.renderTarget = null;
-            support.setOrthographicProjection(0, 0, mWidth, mHeight);
-            
-            if (transparent) support.clear();
-            else             support.clear(mColor, 1);
-            
-            render(support, 1.0);
-            support.finishQuadBatch();
-            
-            Starling.current.context.drawToBitmapData(destination);
-            Starling.current.context.present(); // required on some platforms to avoid flickering
-            
-            return destination;
+
+
+        override public function render(support:RenderSupport, p_parentUpdateTransform:Boolean, p_parentUpdateColor:Boolean, p_draw:Boolean):void {
+
+            var numChildren:int = mChildren.length;
+
+            for (var i:int=0; i<numChildren; ++i)
+            {
+                var child:DisplayObject = mChildren[i];
+                 // removed blendmode and filer +5000;
+
+                if (child.visible)
+                {
+
+
+
+                    child.render(support, p_parentUpdateTransform, p_parentUpdateColor, p_draw ? hasVisibleArea : false);
+
+                }
+
+
+            }
         }
-        
-        // enter frame event optimization
+
+// enter frame event optimization
         
         /** @private */
         internal function addEnterFrameListener(listener:DisplayObject):void
@@ -202,24 +189,6 @@ package starling.display
         public override function set rotation(value:Number):void
         {
             throw new IllegalOperationError("Cannot rotate stage");
-        }
-        
-        /** @private */
-        public override function set skewX(value:Number):void
-        {
-            throw new IllegalOperationError("Cannot skew stage");
-        }
-        
-        /** @private */
-        public override function set skewY(value:Number):void
-        {
-            throw new IllegalOperationError("Cannot skew stage");
-        }
-        
-        /** @private */
-        public override function set filter(value:FragmentFilter):void
-        {
-            throw new IllegalOperationError("Cannot add filter to stage. Add it to 'root' instead!");
         }
         
         /** The background color of the stage. */

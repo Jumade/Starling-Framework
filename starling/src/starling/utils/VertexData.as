@@ -377,6 +377,7 @@ package starling.utils
             var result:String = "[VertexData \n";
             var position:Point = new Point();
             var texCoords:Point = new Point();
+            var color:uint;
             
             for (var i:int=0; i<numVertices; ++i)
             {

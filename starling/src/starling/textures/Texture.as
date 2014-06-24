@@ -10,24 +10,24 @@
 
 package starling.textures
 {
-    import flash.display.Bitmap;
-    import flash.display.BitmapData;
-    import flash.display3D.Context3D;
-    import flash.display3D.Context3DTextureFormat;
-    import flash.display3D.textures.TextureBase;
-    import flash.geom.Rectangle;
-    import flash.system.Capabilities;
-    import flash.utils.ByteArray;
-    import flash.utils.getQualifiedClassName;
-    
-    import starling.core.Starling;
-    import starling.errors.AbstractClassError;
-    import starling.errors.MissingContextError;
-    import starling.utils.Color;
-    import starling.utils.VertexData;
-    import starling.utils.getNextPowerOfTwo;
+import flash.display.Bitmap;
+import flash.display.BitmapData;
+import flash.display3D.Context3D;
+import flash.display3D.Context3DTextureFormat;
+import flash.display3D.textures.TextureBase;
+import flash.geom.Rectangle;
+import flash.system.Capabilities;
+import flash.utils.ByteArray;
+import flash.utils.getQualifiedClassName;
 
-    /** <p>A texture stores the information that represents an image. It cannot be added to the
+import starling.core.Starling;
+import starling.errors.AbstractClassError;
+import starling.errors.MissingContextError;
+import starling.utils.Color;
+import starling.utils.VertexData;
+import starling.utils.getNextPowerOfTwo;
+
+/** <p>A texture stores the information that represents an image. It cannot be added to the
      *  display list directly; instead it has to be mapped onto a display object. In Starling, 
      *  that display object is the class "Image".</p>
      * 
@@ -102,6 +102,10 @@ package starling.textures
      */ 
     public class Texture
     {
+        private var mRepeat:Boolean;
+        public var params:Object;
+        public var uid:uint = Math.random() * 999999;
+        public var uvMapping:Rectangle = new Rectangle(0,0,1,1);
         /** @private */
         public function Texture()
         {
@@ -110,6 +114,7 @@ package starling.textures
             {
                 throw new AbstractClassError();
             }
+            
         }
         
         /** Disposes the underlying texture data. Note that not all textures need to be disposed: 
@@ -123,7 +128,7 @@ package starling.textures
         
         /** Creates a texture object from any of the supported data types, using the specified
          *  options.
-         * 
+         *
          *  @param data:    Either an embedded asset class, a Bitmap, BitmapData, or a ByteArray
          *                  with ATF data.
          *  @param options: Specifies options about the texture settings, e.g. scale factor.
@@ -131,10 +136,10 @@ package starling.textures
         public static function fromData(data:Object, options:TextureOptions=null):Texture
         {
             var texture:Texture = null;
-            
+
             if (data is Bitmap)  data = (data as Bitmap).bitmapData;
             if (options == null) options = new TextureOptions();
-            
+
             if (data is Class)
             {
                 texture = fromEmbeddedAsset(data as Class,
@@ -154,10 +159,10 @@ package starling.textures
             }
             else
                 throw new ArgumentError("Unsupported 'data' type: " + getQualifiedClassName(data));
-            
+
             return texture;
         }
-        
+
         /** Creates a texture object from an embedded asset class. Textures created with this
          *  method will be restored directly from the asset class in case of a context loss,
          *  which guarantees a very economic memory usage.  
@@ -227,6 +232,15 @@ package starling.textures
             return fromBitmapData(bitmap.bitmapData, generateMipMaps, optimizeForRenderToTexture, 
                                   scale, format, repeat);
         }
+        public function adjustTexCoords(texCoords:Vector.<Number>,
+                                        startIndex:int=0, stride:int=0, count:int=-1):void
+        {
+            // override in subclasses
+        }
+        public function adjustVertexData(vertexData:VertexData, vertexID:int, count:int):void
+        {
+            // override in subclass
+        }
         
         /** Creates a texture object from bitmap data.
          *  Beware: you must not dispose 'data' if Starling should handle a lost device context;
@@ -281,7 +295,7 @@ package starling.textures
             var concreteTexture:ConcreteTexture = new ConcreteTexture(nativeTexture, atfData.format, 
                 atfData.width, atfData.height, useMipMaps && atfData.numTextures > 1, 
                 false, false, scale, repeat);
-            
+
             concreteTexture.uploadAtfData(data, 0, async);
             concreteTexture.onRestore = function():void
             {
@@ -290,7 +304,7 @@ package starling.textures
             
             return concreteTexture;
         }
-        
+
         /** Creates a texture with a certain size and color.
          *  
          *  @param width:  in points; number of pixels depends on scale parameter
@@ -392,49 +406,35 @@ package starling.textures
         {
             return new SubTexture(texture, region, false, frame, rotated);
         }
-        
-        /** Converts texture coordinates and vertex positions of raw vertex data into the format 
+
+        /** Converts texture coordinates and vertex positions of raw vertex data into the format
          *  required for rendering. While the texture coordinates of an image always use the
          *  range <code>[0, 1]</code>, the actual coordinates could be different: you
          *  might be working with a SubTexture or a texture frame. This method
          *  adjusts the texture and vertex coordinates accordingly.
          */
-        public function adjustVertexData(vertexData:VertexData, vertexID:int, count:int):void
+        public function getUVData():void
         {
-            // override in subclass
+
         }
-        
-        /** Converts texture coordinates into the format required for rendering. While the texture
-         *  coordinates of an image always use the range <code>[0, 1]</code>, the actual
-         *  coordinates could be different: you might be working with a SubTexture. This method
-         *  adjusts the coordinates accordingly.
-         *
-         *  @param texCoords: a vector containing UV coordinates (optionally, among other data).
-         *                    U and V coordinates always have to come in pairs. The vector is
-         *                    modified in place.
-         *  @param startIndex: the index of the first U coordinate in the vector.
-         *  @param stride: the distance (in vector elements) of consecutive UV pairs.
-         *  @param count: the number of UV pairs that should be adjusted, or "-1" for all of them.
-         */
-        public function adjustTexCoords(texCoords:Vector.<Number>,
-                                        startIndex:int=0, stride:int=0, count:int=-1):void
-        {
-            // override in subclasses
-        }
-        
         // properties
         
-        /** The texture frame if it has one (see class description), otherwise <code>null</code>.
-         *  Only SubTextures can have a frame.
-         *
-         *  <p>CAUTION: not a copy, but the actual object! Do not modify!</p> */
-        public function get frame():Rectangle { return null; }
+        /** The texture frame (see class description). */
+        public function get frame():Rectangle
+        { 
+            return new Rectangle(0, 0, width, height);
+        }
+        /** The texture frame (see class description). */
+        public function get originalFrame():Rectangle
+        {
+            return new Rectangle(0, 0, width, height);
+        }
         
         /** Indicates if the texture should repeat like a wallpaper or stretch the outermost pixels.
          *  Note: this only works in textures with sidelengths that are powers of two and 
          *  that are not loaded from a texture atlas (i.e. no subtextures). @default false */
-        public function get repeat():Boolean { return false; }
-        
+        public function get repeat():Boolean { return mRepeat; }
+        public function set repeat(value:Boolean):void { mRepeat = value; }
         /** The width of the texture in points. */
         public function get width():Number { return 0; }
         
@@ -453,7 +453,7 @@ package starling.textures
         /** The Stage3D texture object the texture is based on. */
         public function get base():TextureBase { return null; }
         
-        /** The concrete texture the texture is based on. */
+        /** The concrete (power-of-two) texture the texture is based on. */
         public function get root():ConcreteTexture { return null; }
         
         /** The <code>Context3DTextureFormat</code> of the underlying texture data. */

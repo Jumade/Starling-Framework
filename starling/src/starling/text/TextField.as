@@ -10,33 +10,28 @@
 
 package starling.text
 {
-    import flash.display.BitmapData;
-    import flash.display.StageQuality;
-    import flash.display3D.Context3DTextureFormat;
-    import flash.filters.BitmapFilter;
-    import flash.geom.Matrix;
-    import flash.geom.Point;
-    import flash.geom.Rectangle;
-    import flash.text.AntiAliasType;
-    import flash.text.TextFormat;
-    import flash.utils.Dictionary;
-    
-    import starling.core.RenderSupport;
-    import starling.core.Starling;
-    import starling.display.DisplayObject;
-    import starling.display.DisplayObjectContainer;
-    import starling.display.Image;
-    import starling.display.Quad;
-    import starling.display.QuadBatch;
-    import starling.display.Sprite;
-    import starling.events.Event;
-    import starling.textures.Texture;
-    import starling.utils.HAlign;
-    import starling.utils.RectangleUtil;
-    import starling.utils.VAlign;
-    import starling.utils.deg2rad;
+import flash.display.BitmapData;
+import flash.display.StageQuality;
+import flash.display3D.Context3DTextureFormat;
+import flash.geom.Matrix;
+import flash.geom.Rectangle;
+import flash.text.AntiAliasType;
+import flash.text.TextFormat;
+import flash.utils.Dictionary;
 
-    /** A TextField displays text, either using standard true type fonts or custom bitmap fonts.
+import starling.core.RenderSupport;
+import starling.core.Starling;
+import starling.display.DisplayObject;
+import starling.display.DisplayObjectContainer;
+import starling.display.Image;
+import starling.display.Quad;
+import starling.display.Sprite;
+import starling.events.Event;
+import starling.textures.Texture;
+import starling.utils.HAlign;
+import starling.utils.VAlign;
+
+/** A TextField displays text, either using standard true type fonts or custom bitmap fonts.
      *  
      *  <p>You can set all properties you are used to, like the font name and size, a color, the 
      *  horizontal and vertical alignment, etc. The border property is helpful during development, 
@@ -81,13 +76,15 @@ package starling.text
      */
     public class TextField extends DisplayObjectContainer
     {
+        public static const DF_EFFECT_GLOW:String = "dfglow";
+        public static const DF_EFFECT_STROKE:String = "dfstroke";
         // the name container with the registered bitmap fonts
         private static const BITMAP_FONT_DATA_NAME:String = "starling.display.TextField.BitmapFonts";
         
         // the texture format that is used for TTF rendering
         private static var sDefaultTextureFormat:String =
             "BGRA_PACKED" in Context3DTextureFormat ? "bgraPacked4444" : "bgra";
-
+            
         private var mFontSize:Number;
         private var mColor:uint;
         private var mText:String;
@@ -106,14 +103,20 @@ package starling.text
         private var mTextBounds:Rectangle;
         private var mBatchable:Boolean;
         
-        private var mHitArea:Rectangle;
+        private var mHitArea:DisplayObject;
         private var mBorder:DisplayObjectContainer;
         
         private var mImage:Image;
-        private var mQuadBatch:QuadBatch;
-        
-        /** Helper objects. */
-        private static var sHelperMatrix:Matrix = new Matrix();
+
+        private var _hasGlow:Boolean = false;
+        private var _hasStroke:Boolean = false;
+        private var _dfSharpness:Number = .25;
+        private var _dfShadowAlpha:Number = .5;
+        private var _dfShadowSize:Number = 1.5;
+
+
+
+        // this object will be used for text rendering
         private static var sNativeTextField:flash.text.TextField = new flash.text.TextField();
         
         /** Create a new text field with the given properties. */
@@ -129,8 +132,11 @@ package starling.text
             mKerning = true;
             mBold = bold;
             mAutoSize = TextFieldAutoSize.NONE;
-            mHitArea = new Rectangle(0, 0, width, height);
             this.fontName = fontName;
+            
+            mHitArea = new Quad(width, height);
+            mHitArea.alpha = 0.0;
+            addChild(mHitArea);
             
             addEventListener(Event.FLATTEN, onFlatten);
         }
@@ -140,7 +146,6 @@ package starling.text
         {
             removeEventListener(Event.FLATTEN, onFlatten);
             if (mImage) mImage.texture.dispose();
-            if (mQuadBatch) mQuadBatch.dispose();
             super.dispose();
         }
         
@@ -150,11 +155,28 @@ package starling.text
         }
         
         /** @inheritDoc */
-        public override function render(support:RenderSupport, parentAlpha:Number):void
+        public override function render(support:RenderSupport, p_parentUpdateTransform:Boolean, p_parentUpdateColor:Boolean, p_draw:Boolean):void
         {
+
+            p_parentUpdateTransform = updateTransform(p_parentUpdateTransform);
+            
+
+
             if (mRequiresRedraw) redraw();
-            super.render(support, parentAlpha);
+
+            var numChildren:int = mChildren.length;
+
+             for (var i:int=0; i<numChildren; ++i)
+             {
+                 var child:DisplayObject = mChildren[i];
+
+
+                 child.render(support, p_parentUpdateTransform, p_parentUpdateColor, p_draw && hasVisibleArea);
+
+             }
         }
+
+
         
         /** Forces the text field to be constructed right away. Normally, 
          *  it will only do so lazily, i.e. before being rendered. */
@@ -162,11 +184,12 @@ package starling.text
         {
             if (mRequiresRedraw)
             {
+                mRequiresRedraw = false;
                 if (mIsRenderedText) createRenderedContents();
                 else                 createComposedContents();
                 
                 updateBorder();
-                mRequiresRedraw = false;
+
             }
         }
         
@@ -174,37 +197,28 @@ package starling.text
         
         private function createRenderedContents():void
         {
-            if (mQuadBatch)
-            {
-                mQuadBatch.removeFromParent(true); 
-                mQuadBatch = null; 
-            }
+
             
             if (mTextBounds == null) 
                 mTextBounds = new Rectangle();
             
-            var texture:Texture;
-            var scale:Number = Starling.contentScaleFactor;
+            var scale:Number  = Starling.contentScaleFactor;
             var bitmapData:BitmapData = renderText(scale, mTextBounds);
             var format:String = sDefaultTextureFormat;
             
             mHitArea.width  = bitmapData.width  / scale;
             mHitArea.height = bitmapData.height / scale;
             
-            texture = Texture.fromBitmapData(bitmapData, false, false, scale, format);
+            var texture:Texture = Texture.fromBitmapData(bitmapData, false, false, scale, format);
             texture.root.onRestore = function():void
             {
                 if (mTextBounds == null)
                     mTextBounds = new Rectangle();
-
-                bitmapData = renderText(scale, mTextBounds);
+                
                 texture.root.uploadBitmapData(renderText(scale, mTextBounds));
-                bitmapData.dispose();
-                bitmapData = null;
             };
             
             bitmapData.dispose();
-            bitmapData = null;
             
             if (mImage == null) 
             {
@@ -220,14 +234,10 @@ package starling.text
             }
         }
 
-        /** This method is called immediately before the text is rendered. The intent of
-         *  'formatText' is to be overridden in a subclass, so that you can provide custom
-         *  formatting for the TextField. In the overriden method, call 'setFormat' (either
-         *  over a range of characters or the complete TextField) to modify the format to
-         *  your needs.
-         *  
-         *  @param textField:  the flash.text.TextField object that you can format.
-         *  @param textFormat: the default text format that's currently set on the text field.
+        /** formatText is called immediately before the text is rendered. The intent of formatText
+         *  is to be overridden in a subclass, so that you can provide custom formatting for TextField.
+         *  <code>textField</code> is the flash.text.TextField object that you can specially format;
+         *  <code>textFormat</code> is the default TextFormat for <code>textField</code>.
          */
         protected function formatText(textField:flash.text.TextField, textFormat:TextFormat):void {}
 
@@ -275,7 +285,7 @@ package starling.text
             
             var textWidth:Number  = sNativeTextField.textWidth;
             var textHeight:Number = sNativeTextField.textHeight;
-
+            
             if (isHorizontalAutoSize)
                 sNativeTextField.width = width = Math.ceil(textWidth + 5);
             if (isVerticalAutoSize)
@@ -285,23 +295,18 @@ package starling.text
             if (width  < 1) width  = 1.0;
             if (height < 1) height = 1.0;
             
-            var textOffsetX:Number = 0.0;
-            if (hAlign == HAlign.LEFT)        textOffsetX = 2; // flash adds a 2 pixel offset
-            else if (hAlign == HAlign.CENTER) textOffsetX = (width - textWidth) / 2.0;
-            else if (hAlign == HAlign.RIGHT)  textOffsetX =  width - textWidth - 2;
-
-            var textOffsetY:Number = 0.0;
-            if (vAlign == VAlign.TOP)         textOffsetY = 2; // flash adds a 2 pixel offset
-            else if (vAlign == VAlign.CENTER) textOffsetY = (height - textHeight) / 2.0;
-            else if (vAlign == VAlign.BOTTOM) textOffsetY =  height - textHeight - 2;
+            var xOffset:Number = 0.0;
+            if (hAlign == HAlign.LEFT)        xOffset = 2; // flash adds a 2 pixel offset
+            else if (hAlign == HAlign.CENTER) xOffset = (width - textWidth) / 2.0;
+            else if (hAlign == HAlign.RIGHT)  xOffset =  width - textWidth - 2;
             
-            // if 'nativeFilters' are in use, the text field might grow beyond its bounds
-            var filterOffset:Point = calculateFilterOffset(sNativeTextField, hAlign, vAlign);
+            var yOffset:Number = 0.0;
+            if (vAlign == VAlign.TOP)         yOffset = 2; // flash adds a 2 pixel offset
+            else if (vAlign == VAlign.CENTER) yOffset = (height - textHeight) / 2.0;
+            else if (vAlign == VAlign.BOTTOM) yOffset =  height - textHeight - 2;
             
-            // finally: draw text field to bitmap data
             var bitmapData:BitmapData = new BitmapData(width, height, true, 0x0);
-            var drawMatrix:Matrix = new Matrix(1, 0, 0, 1,
-                filterOffset.x, filterOffset.y + int(textOffsetY)-2);
+            var drawMatrix:Matrix = new Matrix(1, 0, 0, 1, 0, int(yOffset)-2); 
             var drawWithQualityFunc:Function = 
                 "drawWithQuality" in bitmapData ? bitmapData["drawWithQuality"] : null;
             
@@ -317,8 +322,7 @@ package starling.text
             sNativeTextField.text = "";
             
             // update textBounds rectangle
-            resultTextBounds.setTo((textOffsetX + filterOffset.x) / scale,
-                                   (textOffsetY + filterOffset.y) / scale,
+            resultTextBounds.setTo(xOffset   / scale, yOffset    / scale,
                                    textWidth / scale, textHeight / scale);
             
             return bitmapData;
@@ -340,51 +344,8 @@ package starling.text
             }
         }
         
-        private function calculateFilterOffset(textField:flash.text.TextField,
-                                               hAlign:String, vAlign:String):Point
-        {
-            var resultOffset:Point = new Point();
-            var filters:Array = textField.filters;
-            
-            if (filters != null && filters.length > 0)
-            {
-                var textWidth:Number  = textField.textWidth;
-                var textHeight:Number = textField.textHeight;
-                var bounds:Rectangle  = new Rectangle();
-                
-                for each (var filter:BitmapFilter in filters)
-                {
-                    var blurX:Number    = "blurX"    in filter ? filter["blurX"]    : 0;
-                    var blurY:Number    = "blurY"    in filter ? filter["blurY"]    : 0;
-                    var angleDeg:Number = "angle"    in filter ? filter["angle"]    : 0;
-                    var distance:Number = "distance" in filter ? filter["distance"] : 0;
-                    var angle:Number = deg2rad(angleDeg);
-                    var marginX:Number = blurX * 1.33; // that's an empirical value
-                    var marginY:Number = blurY * 1.33;
-                    var offsetX:Number  = Math.cos(angle) * distance - marginX / 2.0;
-                    var offsetY:Number  = Math.sin(angle) * distance - marginY / 2.0;
-                    var filterBounds:Rectangle = new Rectangle(
-                        offsetX, offsetY, textWidth + marginX, textHeight + marginY);
-                    
-                    bounds = bounds.union(filterBounds);
-                }
-                
-                if (hAlign == HAlign.LEFT && bounds.x < 0)
-                    resultOffset.x = -bounds.x;
-                else if (hAlign == HAlign.RIGHT && bounds.y > 0)
-                    resultOffset.x = -(bounds.right - textWidth);
-                
-                if (vAlign == VAlign.TOP && bounds.y < 0)
-                    resultOffset.y = -bounds.y;
-                else if (vAlign == VAlign.BOTTOM && bounds.y > 0)
-                    resultOffset.y = -(bounds.bottom - textHeight);
-            }
-            
-            return resultOffset;
-        }
-        
         // bitmap font composition
-        
+        private var _glyphCount:int = 0;
         private function createComposedContents():void
         {
             if (mImage) 
@@ -394,14 +355,7 @@ package starling.text
                 mImage = null; 
             }
             
-            if (mQuadBatch == null) 
-            { 
-                mQuadBatch = new QuadBatch(); 
-                mQuadBatch.touchable = false;
-                addChild(mQuadBatch); 
-            }
-            else
-                mQuadBatch.reset();
+
             
             var bitmapFont:BitmapFont = getBitmapFont(mFontName);
             if (bitmapFont == null) throw new Error("Bitmap font not registered: " + mFontName);
@@ -421,15 +375,22 @@ package starling.text
                 height = int.MAX_VALUE;
                 vAlign = VAlign.TOP;
             }
-            
-            bitmapFont.fillQuadBatch(mQuadBatch,
+
+            _glyphCount = 0;
+            //if(numChildren > 1)
+              //  removeChildren(1);
+            bitmapFont.fillQuadBatch(this,
                 width, height, mText, mFontSize, mColor, hAlign, vAlign, mAutoScale, mKerning);
             
-            mQuadBatch.batchable = mBatchable;
+            if(_glyphCount+1 < numChildren)
+            {
+                removeChildren(_glyphCount+1,numChildren);
+            }
             
+
             if (mAutoSize != TextFieldAutoSize.NONE)
             {
-                mTextBounds = mQuadBatch.getBounds(mQuadBatch, mTextBounds);
+                mTextBounds = this.getBounds(this, mTextBounds);
                 
                 if (isHorizontalAutoSize)
                     mHitArea.width  = mTextBounds.x + mTextBounds.width;
@@ -443,6 +404,51 @@ package starling.text
             }
         }
         
+        public function addGlyphImage(p_texture:Texture,p_color:uint,p_x:Number,p_y:Number ,p_scale:Number, p_df:Boolean = false, p_spread:Number = 0):void
+        {
+            var mHelperImage:Image;
+            if(p_df)
+            {
+
+
+                if(_glyphCount+1 < numChildren)
+                {
+                    mHelperImage   = mChildren[_glyphCount +1] as GlyphImage;
+                    mHelperImage.texture = p_texture;
+                } else
+                {
+                    mHelperImage = new GlyphImage(p_texture);
+
+                    this.addChild(mHelperImage);
+                }
+
+                GlyphImage(mHelperImage).spread = p_spread;
+
+
+            } else
+            {
+
+                if(_glyphCount+1 < numChildren)
+                {
+                  mHelperImage   = mChildren[_glyphCount +1] as Image;
+                  mHelperImage.texture = p_texture;
+                } else
+                {
+                  mHelperImage = new Image(p_texture);
+                  this.addChild(mHelperImage);
+                }
+            }
+
+
+            mHelperImage.color = p_color;
+            mHelperImage.readjustSize();
+            mHelperImage.x = p_x;
+            mHelperImage.y = p_y;
+            mHelperImage.scaleX = mHelperImage.scaleY = p_scale;
+
+            _glyphCount++;
+
+        }
         // helpers
         
         private function updateBorder():void
@@ -484,7 +490,7 @@ package starling.text
         public function get textBounds():Rectangle
         {
             if (mRequiresRedraw) redraw();
-            if (mTextBounds == null) mTextBounds = mQuadBatch.getBounds(mQuadBatch);
+            if (mTextBounds == null) mTextBounds = this.getBounds(this);
             return mTextBounds.clone();
         }
         
@@ -492,18 +498,9 @@ package starling.text
         public override function getBounds(targetSpace:DisplayObject, resultRect:Rectangle=null):Rectangle
         {
             if (mRequiresRedraw) redraw();
-            getTransformationMatrix(targetSpace, sHelperMatrix);
-            return RectangleUtil.getBounds(mHitArea, sHelperMatrix, resultRect);
+            return mHitArea.getBounds(targetSpace, resultRect);
         }
         
-        /** @inheritDoc */
-        public override function hitTest(localPoint:Point, forTouch:Boolean=false):DisplayObject
-        {
-            if (forTouch && (!visible || !touchable)) return null;
-            else if (mHitArea.containsPoint(localPoint)) return this;
-            else return null;
-        }
-
         /** @inheritDoc */
         public override function set width(value:Number):void
         {
@@ -701,7 +698,6 @@ package starling.text
         public function set batchable(value:Boolean):void
         { 
             mBatchable = value;
-            if (mQuadBatch) mQuadBatch.batchable = value;
         }
 
         /** The native Flash BitmapFilters to apply to this TextField. 
@@ -729,7 +725,7 @@ package starling.text
         /** Makes a bitmap font available at any TextField in the current stage3D context.
          *  The font is identified by its <code>name</code> (not case sensitive).
          *  Per default, the <code>name</code> property of the bitmap font will be used, but you 
-         *  can pass a custom name, as well. @return the name of the font. */
+         *  can pass a custom name, as well. @returns the name of the font. */
         public static function registerBitmapFont(bitmapFont:BitmapFont, name:String=null):String
         {
             if (name == null) name = bitmapFont.name;
@@ -769,5 +765,54 @@ package starling.text
             
             return fonts;
         }
+        public function get textHeight():int {
+            if (mRequiresRedraw) redraw();
+            return 1;
+        }
+
+        public function get dfSharpness():Number {
+            return _dfSharpness;
+        }
+
+        public function set dfSharpness(value:Number):void {
+            _dfSharpness = value;
+        }
+
+
+        public function get dfShadowAlpha():Number {
+            return _dfShadowAlpha;
+        }
+
+        public function set dfShadowAlpha(value:Number):void {
+            _dfShadowAlpha = value;
+        }
+
+        public function get dfShadowSize():Number {
+            return _dfShadowSize;
+        }
+
+        public function set dfShadowSize(value:Number):void {
+            _dfShadowSize = value;
+        }
+        public function set dfEffect(value:String):void {
+            _hasGlow = false;
+            _hasStroke = false;
+
+            if(value == DF_EFFECT_GLOW)
+            {
+                _hasGlow = true;
+            }else if(value == DF_EFFECT_STROKE)
+            {
+                _hasStroke = true;
+            }
+        }
+
+    public function get hasGlow():Boolean {
+        return _hasGlow;
     }
+
+    public function get hasStroke():Boolean {
+        return _hasStroke;
+    }
+}
 }

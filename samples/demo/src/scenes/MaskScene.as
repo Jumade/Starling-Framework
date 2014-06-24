@@ -10,7 +10,7 @@ package scenes
     import starling.events.Touch;
     import starling.events.TouchEvent;
     import starling.events.TouchPhase;
-    import starling.filters.ColorMatrixFilter;
+
     import starling.text.TextField;
 
     public class MaskScene extends Scene
@@ -35,10 +35,7 @@ package scenes
             image.y = 80;
             mContents.addChild(image);
             
-            // just to prove it works, use a filter on the image.
-            var cm:ColorMatrixFilter = new ColorMatrixFilter();
-            cm.adjustHue(-0.5);
-            image.filter = cm;
+
             
             var scissorText:TextField = new TextField(256, 128, 
                 "Move the mouse (or a finger) over the screen to move the clipping rectangle.");

@@ -10,14 +10,16 @@
 
 package starling.display
 {
-    import flash.errors.IllegalOperationError;
-    import flash.media.Sound;
-    
-    import starling.animation.IAnimatable;
-    import starling.events.Event;
-    import starling.textures.Texture;
-    
-    /** Dispatched whenever the movie has displayed its last frame. */
+import flash.errors.IllegalOperationError;
+import flash.geom.Rectangle;
+import flash.media.Sound;
+
+import starling.animation.IAnimatable;
+import starling.events.Event;
+import starling.textures.Texture;
+import starling.textures.TextureSmoothing;
+
+/** Dispatched whenever the movie has displayed its last frame. */
     [Event(name="complete", type="starling.events.Event")]
     
     /** A MovieClip is a simple way to display an animation depicted by a list of textures.
@@ -53,28 +55,35 @@ package starling.display
         private var mCurrentFrame:int;
         private var mLoop:Boolean;
         private var mPlaying:Boolean;
-        private var mMuted:Boolean;
-        
+
         /** Creates a movie clip from the provided textures and with the specified default framerate.
-         *  The movie will have the size of the first frame. */  
-        public function MovieClip(textures:Vector.<Texture>, fps:Number=12)
+         *  The movie will have the size of the first frame. */
+        public function MovieClip(textures:Vector.<Texture> = null, fps:Number=12)
         {
-            if (textures.length > 0)
+            if (textures && textures.length > 0)
             {
                 super(textures[0]);
                 init(textures, fps);
             }
-            else
-            {
-                throw new ArgumentError("Empty texture array");
-            }
+
         }
-        
-        private function init(textures:Vector.<Texture>, fps:Number):void
+
+        public function init(textures:Vector.<Texture>, fps:Number):void
         {
+
+            var frame:Rectangle = textures[0].frame;
+            width  = frame ? frame.width  : textures[0].width;
+            height = frame ? frame.height : textures[0].height;
+            premultipliedAlpha = textures[0].premultipliedAlpha;
+
+
+            texture = textures[0];
+            smoothing = TextureSmoothing.BILINEAR;
+
+
             if (fps <= 0) throw new ArgumentError("Invalid fps: " + fps);
             var numFrames:int = textures.length;
-            
+
             mDefaultFrameDuration = 1.0 / fps;
             mLoop = true;
             mPlaying = true;
@@ -84,7 +93,7 @@ package starling.display
             mSounds = new Vector.<Sound>(numFrames);
             mDurations = new Vector.<Number>(numFrames);
             mStartTimes = new Vector.<Number>(numFrames);
-            
+
             for (var i:int=0; i<numFrames; ++i)
             {
                 mDurations[i] = mDefaultFrameDuration;
@@ -220,6 +229,7 @@ package starling.display
             var previousFrame:int = mCurrentFrame;
             var restTime:Number = 0.0;
             var breakAfterFrame:Boolean = false;
+            var hasCompleteListener:Boolean = hasEventListener(Event.COMPLETE); 
             var dispatchCompleteEvent:Boolean = false;
             var totalTime:Number = this.totalTime;
             
@@ -238,7 +248,7 @@ package starling.display
                 {
                     if (mCurrentFrame == finalFrame)
                     {
-                        if (mLoop && !hasEventListener(Event.COMPLETE))
+                        if (mLoop && !hasCompleteListener)
                         {
                             mCurrentTime -= totalTime;
                             mCurrentFrame = 0;
@@ -247,7 +257,7 @@ package starling.display
                         {
                             breakAfterFrame = true;
                             restTime = mCurrentTime - totalTime;
-                            dispatchCompleteEvent = true;
+                            dispatchCompleteEvent = hasCompleteListener;
                             mCurrentFrame = finalFrame;
                             mCurrentTime = totalTime;
                         }
@@ -258,13 +268,13 @@ package starling.display
                     }
                     
                     var sound:Sound = mSounds[mCurrentFrame];
-                    if (sound && !mMuted) sound.play();
+                    if (sound) sound.play();
                     if (breakAfterFrame) break;
                 }
                 
                 // special case when we reach *exactly* the total time.
                 if (mCurrentFrame == finalFrame && mCurrentTime == totalTime)
-                    dispatchCompleteEvent = true;
+                    dispatchCompleteEvent = hasCompleteListener;
             }
             
             if (mCurrentFrame != previousFrame)
@@ -275,6 +285,12 @@ package starling.display
             
             if (mLoop && restTime > 0.0)
                 advanceTime(restTime);
+        }
+        
+        /** Indicates if a (non-looping) movie has come to its end. */
+        public function get isComplete():Boolean 
+        {
+            return !mLoop && mCurrentTime >= totalTime;
         }
         
         // properties  
@@ -296,11 +312,6 @@ package starling.display
         public function get loop():Boolean { return mLoop; }
         public function set loop(value:Boolean):void { mLoop = value; }
         
-        /** If enabled, no new sounds will be started during playback. Sounds that are already
-         *  playing are not affected. */
-        public function get muted():Boolean { return mMuted; }
-        public function set muted(value:Boolean):void { mMuted = value; }
-
         /** The index of the frame that is currently displayed. */
         public function get currentFrame():int { return mCurrentFrame; }
         public function set currentFrame(value:int):void
@@ -312,7 +323,7 @@ package starling.display
                 mCurrentTime += getFrameDuration(i);
             
             texture = mTextures[mCurrentFrame];
-            if (!mMuted && mSounds[mCurrentFrame]) mSounds[mCurrentFrame].play();
+            if (mSounds[mCurrentFrame]) mSounds[mCurrentFrame].play();
         }
         
         /** The default number of frames per second. Individual frames can have different 
@@ -329,8 +340,11 @@ package starling.display
             mDefaultFrameDuration = newFrameDuration;
             
             for (var i:int=0; i<numFrames; ++i) 
-                mDurations[i] *= acceleration;
-
+            {
+                var duration:Number = mDurations[i] * acceleration;
+                mDurations[i] = duration;
+            }
+            
             updateStartTimes();
         }
         
@@ -342,12 +356,6 @@ package starling.display
                 return mLoop || mCurrentTime < totalTime;
             else
                 return false;
-        }
-
-        /** Indicates if a (non-looping) movie has come to its end. */
-        public function get isComplete():Boolean
-        {
-            return !mLoop && mCurrentTime >= totalTime;
         }
     }
 }

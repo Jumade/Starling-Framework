@@ -10,16 +10,14 @@
 
 package starling.display
 {
-    import flash.geom.Matrix;
-    import flash.geom.Point;
-    import flash.geom.Rectangle;
-    
-    import starling.core.RenderSupport;
-    import starling.events.Event;
-    import starling.utils.MatrixUtil;
-    import starling.utils.RectangleUtil;
+import flash.geom.Matrix;
+import flash.geom.Point;
+import flash.geom.Rectangle;
 
-    /** Dispatched on all children when the object is flattened. */
+import starling.core.RenderSupport;
+import starling.utils.RectangleUtil;
+
+/** Dispatched on all children when the object is flattened. */
     [Event(name="flatten", type="starling.events.Event")]
     
     /** A Sprite is the most lightweight, non-abstract container class.
@@ -51,9 +49,8 @@ package starling.display
      */
     public class Sprite extends DisplayObjectContainer
     {
-        private var mFlattenedContents:Vector.<QuadBatch>;
-        private var mFlattenRequested:Boolean;
         private var mClipRect:Rectangle;
+        private var mHasClipRect:Boolean = false;
         
         /** Helper objects. */
         private static var sHelperMatrix:Matrix = new Matrix();
@@ -75,13 +72,7 @@ package starling.display
         
         private function disposeFlattenedContents():void
         {
-            if (mFlattenedContents)
-            {
-                for (var i:int=0, max:int=mFlattenedContents.length; i<max; ++i)
-                    mFlattenedContents[i].dispose();
-                
-                mFlattenedContents = null;
-            }
+
         }
         
         /** Optimizes the sprite for optimal rendering performance. Changes in the
@@ -100,22 +91,18 @@ package starling.display
          */
         public function flatten():void
         {
-            mFlattenRequested = true;
-            broadcastEventWith(Event.FLATTEN);
         }
         
         /** Removes the rendering optimizations that were created when flattening the sprite.
          *  Changes to the sprite's children will immediately become visible again. */ 
         public function unflatten():void
         {
-            mFlattenRequested = false;
-            disposeFlattenedContents();
         }
         
         /** Indicates if the sprite was flattened. */
         public function get isFlattened():Boolean 
         { 
-            return (mFlattenedContents != null) || mFlattenRequested; 
+            return false;
         }
         
         /** The object's clipping rectangle in its local coordinate system.
@@ -127,6 +114,8 @@ package starling.display
         {
             if (mClipRect && value) mClipRect.copyFrom(value);
             else mClipRect = (value ? value.clone() : null);
+
+            mHasClipRect = mHasClipRect != null;
         }
 
         /** Returns the bounds of the container's clipRect in the given coordinate space, or
@@ -136,101 +125,109 @@ package starling.display
             if (mClipRect == null) return null;
             if (resultRect == null) resultRect = new Rectangle();
             
-            var x:Number, y:Number;
+            var pos:Point = new Point()
             var minX:Number =  Number.MAX_VALUE;
             var maxX:Number = -Number.MAX_VALUE;
             var minY:Number =  Number.MAX_VALUE;
             var maxY:Number = -Number.MAX_VALUE;
-            var transMatrix:Matrix = getTransformationMatrix(targetSpace, sHelperMatrix);
-            
+
             for (var i:int=0; i<4; ++i)
             {
                 switch(i)
                 {
-                    case 0: x = mClipRect.left;  y = mClipRect.top;    break;
-                    case 1: x = mClipRect.left;  y = mClipRect.bottom; break;
-                    case 2: x = mClipRect.right; y = mClipRect.top;    break;
-                    case 3: x = mClipRect.right; y = mClipRect.bottom; break;
+                    case 0: pos.x = mClipRect.left;  pos.y = mClipRect.top;    break;
+                    case 1: pos.x = mClipRect.left;  pos.y = mClipRect.bottom; break;
+                    case 2: pos.x = mClipRect.right; pos.y = mClipRect.top;    break;
+                    case 3: pos.x = mClipRect.right; pos.y = mClipRect.bottom; break;
                 }
-                var transformedPoint:Point = MatrixUtil.transformCoords(transMatrix, x, y, sHelperPoint);
+                localToGlobal(pos,sHelperPoint)
+
                 
-                if (minX > transformedPoint.x) minX = transformedPoint.x;
-                if (maxX < transformedPoint.x) maxX = transformedPoint.x;
-                if (minY > transformedPoint.y) minY = transformedPoint.y;
-                if (maxY < transformedPoint.y) maxY = transformedPoint.y;
+                if (minX > sHelperPoint.x) minX = sHelperPoint.x;
+                if (maxX < sHelperPoint.x) maxX = sHelperPoint.x;
+                if (minY > sHelperPoint.y) minY = sHelperPoint.y;
+                if (maxY < sHelperPoint.y) maxY = sHelperPoint.y;
             }
             
             resultRect.setTo(minX, minY, maxX-minX, maxY-minY);
             return resultRect;
         }
-        
-        /** @inheritDoc */ 
-        public override function getBounds(targetSpace:DisplayObject, resultRect:Rectangle=null):Rectangle
-        {
-            var bounds:Rectangle = super.getBounds(targetSpace, resultRect);
-            
-            // if we have a scissor rect, intersect it with our bounds
-            if (mClipRect)
-                RectangleUtil.intersect(bounds, getClipRect(targetSpace, sHelperRect), 
-                                        bounds);
-            
-            return bounds;
-        }
-        
-        /** @inheritDoc */
-        public override function hitTest(localPoint:Point, forTouch:Boolean=false):DisplayObject
-        {
-            if (mClipRect != null && !mClipRect.containsPoint(localPoint))
-                return null;
-            else
-                return super.hitTest(localPoint, forTouch);
-        }
-        
-        /** @inheritDoc */
-        public override function render(support:RenderSupport, parentAlpha:Number):void
-        {
-            if (mClipRect)
+
+
+        override public function render(support:RenderSupport, p_parentUpdateTransform:Boolean, p_parentUpdateColor:Boolean, p_draw:Boolean):void {
+
+            if(mHasClipRect)
             {
+                //trace("render cliped",mClipRect.toString(),worldScaleX,worldScaleY)
+
                 var clipRect:Rectangle = support.pushClipRect(getClipRect(stage, sHelperRect));
+                //trace(clipRect.toString())
                 if (clipRect.isEmpty())
                 {
                     // empty clipping bounds - no need to render children.
                     support.popClipRect();
                     return;
                 }
-            }
-            
-            if (mFlattenedContents || mFlattenRequested)
-            {
-                if (mFlattenedContents == null)
-                    mFlattenedContents = new <QuadBatch>[];
-                
-                if (mFlattenRequested)
-                {
-                    QuadBatch.compile(this, mFlattenedContents);
-                    support.applyClipRect(); // compiling filters might change scissor rect. :-\
-                    mFlattenRequested = false;
-                }
-                
-                var alpha:Number = parentAlpha * this.alpha;
-                var numBatches:int = mFlattenedContents.length;
-                var mvpMatrix:Matrix = support.mvpMatrix;
-                
-                support.finishQuadBatch();
-                support.raiseDrawCount(numBatches);
-                
-                for (var i:int=0; i<numBatches; ++i)
-                {
-                    var quadBatch:QuadBatch = mFlattenedContents[i];
-                    var blendMode:String = quadBatch.blendMode == BlendMode.AUTO ?
-                        support.blendMode : quadBatch.blendMode;
-                    quadBatch.renderCustom(mvpMatrix, alpha, blendMode);
-                }
-            }
-            else super.render(support, parentAlpha);
-            
-            if (mClipRect)
+                super.render(support, p_parentUpdateTransform, p_parentUpdateColor, p_draw);
                 support.popClipRect();
+            } else
+                super.render(support, p_parentUpdateTransform, p_parentUpdateColor, p_draw);
+            
+
         }
+
+        override public function getCurrentTargetBound(resultRect:Rectangle):void {
+
+            if (mHasClipRect)
+            {
+                if(mClipRect.x < resultRect.x)
+                    resultRect.x = mClipRect.x;
+                if(mClipRect.y < resultRect.y)
+                    resultRect.y = mClipRect.y;
+                if(mClipRect.width > resultRect.width)
+                    resultRect.width = mClipRect.width;
+                if(mClipRect.height > resultRect.height)
+                    resultRect.height = mClipRect.height;
+
+
+            }else
+            {
+                super.getCurrentTargetBound(resultRect);
+            }
+       
+            
+        }
+
+        /** @inheritDoc */
+        public override function getBounds(targetSpace:DisplayObject, resultRect:Rectangle=null):Rectangle
+        {
+            var bounds:Rectangle = super.getBounds(targetSpace, resultRect);
+
+            // if we have a scissor rect, intersect it with our bounds
+            if (mHasClipRect)
+                RectangleUtil.intersect(bounds, getClipRect(targetSpace, sHelperRect),
+                                        bounds);
+
+            return bounds;
+        }
+
+        /** @inheritDoc */
+        public override function hitTest(localPoint:Point, forTouch:Boolean=false):DisplayObject
+        {
+            if (mHasClipRect)
+            {
+                var clipRect:Rectangle = getClipRect(stage, sHelperRect);
+
+                if(clipRect.containsPoint(localPoint))
+                    return super.hitTest(localPoint, forTouch);
+                else
+                    return null
+            }
+            else
+                return super.hitTest(localPoint, forTouch);
+        }
+
+        /** @inheritDoc */
+
     }
 }
