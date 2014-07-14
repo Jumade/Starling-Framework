@@ -2,8 +2,9 @@ package
 {
     import flash.display.Sprite;
     import flash.system.Capabilities;
-    
-    import starling.core.Starling;
+import flash.text.AntiAliasType;
+
+import starling.core.Starling;
     import starling.events.Event;
     import starling.textures.Texture;
     import starling.utils.AssetManager;

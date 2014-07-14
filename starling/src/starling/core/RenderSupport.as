@@ -27,12 +27,14 @@ import flash.utils.ByteArray;
 import flash.utils.Endian;
 
 import starling.core.renderer.ColorRenderer;
+import starling.core.renderer.ColorVoxelRenderer;
 import starling.core.renderer.DFGlyphRenderer;
 import starling.core.renderer.ImageRenderer;
 import starling.core.renderer.MultiTextureImageRenderer;
 import starling.core.renderer.ParticleRenderer;
 import starling.core.renderer.TintedImageRenderer;
 import starling.display.BlendMode;
+import starling.display.ColorVoxel;
 import starling.display.DisplayObject;
 import starling.display.Image;
 import starling.display.Quad;
@@ -77,6 +79,7 @@ import starling.utils.RectangleUtil;
         private var mTintedImageRenderer:TintedImageRenderer;
         private var mMTBatchImageRenderer:MultiTextureImageRenderer;
         private var mColorRenderer:ColorRenderer;
+        private var mColorVoxelRenderer:ColorVoxelRenderer;
         private var mParticleRenderer:ParticleRenderer;
         private var mGlyphRenderer:DFGlyphRenderer;
         private var _currentRenderer:int = -1;
@@ -113,6 +116,9 @@ import starling.utils.RectangleUtil;
             setOrthographicProjection(0, 0, 400, 300);
         }
         private var _vertexBuffer:VertexBuffer3D;
+        private var _vertexBuffer3D:VertexBuffer3D;
+        private var _vertexNormalBuffer3D:VertexBuffer3D;
+        private var _vertexUVBuffer3D:VertexBuffer3D;
         private var _vertexConstantsByte:ByteArray;
         private var orthographicProjectionWidth:Number;
         private var orthographicProjectionHeight:Number;
@@ -139,7 +145,128 @@ import starling.utils.RectangleUtil;
 
             _vertexBuffer = context.createVertexBuffer(60*4, 3);
             _vertexBuffer.uploadFromVector(vertexData, 0, 60*4);
-            context.setVertexBufferAt(0, _vertexBuffer, 0, Context3DVertexBufferFormat.FLOAT_3);
+
+
+
+
+
+            var _voxelVertexData:Vector.<Number> = new <Number>[        0  , 0 ,0,
+                                                                        0  , 1.0, 0,
+                                                                        1.0, 0  , 0,
+                                                                        1.0, 1.0, 0,
+                                                                          0  , 0 ,-1.0,
+                                                                          0  , 1.0, -1.0,
+                                                                          1.0, 0  , -1.0,
+                                                                          1.0, 1.0, -1.0];
+            var vertexData3D:Vector.<Number> = new <Number>[];
+            for(var i:int = 0; i < 60;i++) // overall max buffer sice
+            {
+
+                vertexData3D = vertexData3D.concat(_voxelVertexData);
+                vertexData3D = vertexData3D.concat(_voxelVertexData);
+                vertexData3D = vertexData3D.concat(_voxelVertexData);
+
+
+            }
+
+            //Context3DBufferUsage
+
+            _vertexBuffer3D = context.createVertexBuffer(60*8*3, 3);
+            _vertexBuffer3D.uploadFromVector(vertexData3D, 0, 60*8*3);
+
+
+
+            var _normmalFrontBack:Vector.<Number> = new <Number>[   0  , 0 ,-1.0,
+                                                                    0  , 0 ,-1.0,
+                                                                    0  , 0 ,-1.0,
+                                                                    0  , 0 ,-1.0,
+                                                                    0  , 0 ,1.0,
+                                                                    0  , 0 ,1.0,
+                                                                    0  , 0 ,1.0,
+                                                                    0  , 0 ,1.0];
+
+
+
+            var _normmalUpDown:Vector.<Number> = new <Number>[      0  , -1.0 ,0,
+                                                                    0  , 1.0 ,0,
+                                                                    0  , -1.0 ,0,
+                                                                    0  , 1.0 ,0,
+                                                                    0  , -1.0 ,0,
+                                                                    0  , 1.0 ,0,
+                                                                    0  , -1.0 ,0,
+                                                                    0  , 1.0 ,0];
+
+            var _normmalLeftRight:Vector.<Number> = new <Number>[   -1.0  , 0 ,0,
+                                                                   -1.0  , 0 ,0,
+                                                                    1.0  , 0 ,0,
+                                                                    1.0  , 0 ,0,
+                                                                    -1.0  , 0 ,0,
+                                                                    -1.0  , 0 ,0,
+                                                                    1.0  , 0 ,0,
+                                                                    1.0  , 0 ,0];
+
+            var vertexNormalData3D:Vector.<Number> = new <Number>[];
+            for(var i:int = 0; i < 60;i++) // overall max buffer sice
+            {
+
+                vertexNormalData3D = vertexNormalData3D.concat(_normmalFrontBack);
+
+                vertexNormalData3D = vertexNormalData3D.concat(_normmalLeftRight);
+                vertexNormalData3D = vertexNormalData3D.concat(_normmalUpDown);
+
+            }
+
+            //Context3DBufferUsage
+
+            _vertexNormalBuffer3D = context.createVertexBuffer(60*8*3, 3);
+            _vertexNormalBuffer3D.uploadFromVector(vertexNormalData3D, 0, 60*8*3);
+
+
+
+            var _voxelUVData:Vector.<Number> = new <Number>[0  , 0 ,
+                                                             0  , 1.0,
+                                                             1.0, 0  ,
+                                                             1.0, 1.0,
+                                                             0  , 1.0,
+                                                             0  , 0 ,
+                                                             1.0, 1.0,
+                                                             1.0, 0];
+
+            var _voxelUVData2:Vector.<Number> = new <Number>[ 1, 0,
+                                                              1, 1,
+                                                              0, 0,
+                                                              0, 1,
+                                                              0, 0,
+                                                              0, 1,
+                                                              1, 0 ,
+                                                              1, 1];
+            var _voxelUVData3:Vector.<Number> = new <Number>[ 0, 1,
+                                                              0, 0,
+                                                              1, 1,
+                                                              1, 0,
+                                                              0, 0,
+                                                              0, 1,
+                                                              1, 0,
+                                                              1, 1];
+
+
+            var vertexUVData3D:Vector.<Number> = new <Number>[];
+            for(var i:int = 0; i < 60;i++) // overall max buffer sice
+            {
+
+                vertexUVData3D = vertexUVData3D.concat(_voxelUVData);
+                vertexUVData3D = vertexUVData3D.concat(_voxelUVData2);
+                vertexUVData3D = vertexUVData3D.concat(_voxelUVData3);
+
+            }
+
+            //Context3DBufferUsage
+
+            _vertexUVBuffer3D = context.createVertexBuffer(60*8*3, 2);
+            _vertexUVBuffer3D.uploadFromVector(vertexUVData3D, 0, 60*8*3);
+
+
+            set2DBuffer()
 
 
             _vertexConstantsByte= new ByteArray();
@@ -148,12 +275,31 @@ import starling.utils.RectangleUtil;
             ApplicationDomain.currentDomain.domainMemory = _vertexConstantsByte;
 
             mColorRenderer = new ColorRenderer(_vertexConstantsByte, this);
+            mColorVoxelRenderer = new ColorVoxelRenderer(_vertexConstantsByte, this);
             mMTBatchImageRenderer = new MultiTextureImageRenderer(_vertexConstantsByte, this);
             mImageRenderer = new ImageRenderer(_vertexConstantsByte, this);
             mTintedImageRenderer = new TintedImageRenderer(_vertexConstantsByte, this)
             mParticleRenderer = new ParticleRenderer(_vertexConstantsByte, this);
             mGlyphRenderer = new DFGlyphRenderer(_vertexConstantsByte, this);
         }
+    public function set2DBuffer():void
+    {
+        var context:Context3D = Starling.context;
+        context.setVertexBufferAt(0, _vertexBuffer, 0, Context3DVertexBufferFormat.FLOAT_3);
+        context.setVertexBufferAt(1,null);
+        context.setVertexBufferAt(2,null);
+        context.setVertexBufferAt(3,null);
+    }
+    public function set3DBuffer():void
+       {
+           var context:Context3D = Starling.context;
+           context.setVertexBufferAt(0, _vertexBuffer3D, 0, Context3DVertexBufferFormat.FLOAT_3);
+           context.setVertexBufferAt(1, _vertexNormalBuffer3D, 0, Context3DVertexBufferFormat.FLOAT_3);
+           context.setVertexBufferAt(2, _vertexUVBuffer3D, 0, Context3DVertexBufferFormat.FLOAT_2);
+
+
+
+       }
         public function setQuadVertex():void
         {
             Starling.context.setVertexBufferAt(0, _vertexBuffer, 0, Context3DVertexBufferFormat.FLOAT_2);
@@ -437,6 +583,16 @@ import starling.utils.RectangleUtil;
 
            mColorRenderer.draw(quad);
         }
+    public function drawColorVoxel(quad:ColorVoxel):void
+            {
+                if(_currentRenderer != ColorVoxelRenderer.ID)
+                {
+                    finishDraw();
+                    _currentRenderer = ColorVoxelRenderer.ID;
+                }
+
+               mColorVoxelRenderer.draw(quad);
+            }
         public function drawParticle(e:ParticleEmitter,p:ParticleDisplay):void
         {
             if(_currentRenderer != ParticleRenderer.ID)
@@ -465,6 +621,7 @@ import starling.utils.RectangleUtil;
             mGlyphRenderer.finishDraw();
             mMTBatchImageRenderer.finishDraw();
             mTintedImageRenderer.finishDraw();
+            mColorVoxelRenderer.finishDraw();
         }
         // optimized quad rendering
         

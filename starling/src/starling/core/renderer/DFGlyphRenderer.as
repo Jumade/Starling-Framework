@@ -133,7 +133,7 @@ public class DFGlyphRenderer {
         _vcLength += 4
 
         mNumQuads++;
-        if(mNumQuads ==41)
+        if(mNumQuads ==40)
             drawGPU();
 
     }

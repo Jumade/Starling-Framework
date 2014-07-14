@@ -12,14 +12,16 @@ package
     import scenes.MovieScene;
     import scenes.MultiTextureBenchmark;
     import scenes.ParticleScene;
-    import scenes.TextScene;
+import scenes.TextBenchmarkScene;
+import scenes.TextScene;
     import scenes.TextureScene;
     import scenes.TouchScene;
 
     import scenes.TransformContainerHitScene;
     import scenes.TransformContainerScene;
+import scenes.ColorVoxelScene;
 
-    import starling.core.Starling;
+import starling.core.Starling;
     import starling.display.Button;
     import starling.display.Image;
     import starling.display.Sprite;
@@ -57,7 +59,7 @@ import starling.text.TextField;
 
             var newScenesToCreate:Array = [
               ["Original Benchmark", BenchmarkScene],
-              ["MT Benchmark", MultiTextureBenchmark],
+              ["Color Voxel", ColorVoxelScene],
 
               ["Particles", ParticleScene],
               ["DF TextField", DistanceFieldTextScene],

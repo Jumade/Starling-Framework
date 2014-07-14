@@ -35,7 +35,7 @@ public class TransformContainerScene extends Scene
 
 
 
-            transform = new Transform3DContainer(1000);
+            transform = new Transform3DContainer(500);
             transform.addChild(image1);
             transform.x = Constants.GameWidth*.5;
             transform.y = Constants.GameHeight*.5;
