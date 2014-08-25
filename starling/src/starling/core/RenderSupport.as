@@ -22,9 +22,16 @@ import flash.geom.Matrix;
 import flash.geom.Matrix3D;
 import flash.geom.Point;
 import flash.geom.Rectangle;
+import flash.geom.Vector3D;
 import flash.system.ApplicationDomain;
 import flash.utils.ByteArray;
 import flash.utils.Endian;
+
+import net.richardlord.coral.Point3d;
+
+import net.richardlord.coral.Vector3d;
+
+import starling.camera.Camera;
 
 import starling.core.renderer.ColorRenderer;
 import starling.core.renderer.ColorVoxelRenderer;
@@ -79,7 +86,7 @@ import starling.utils.RectangleUtil;
         private var mTintedImageRenderer:TintedImageRenderer;
         private var mMTBatchImageRenderer:MultiTextureImageRenderer;
         private var mColorRenderer:ColorRenderer;
-        private var mColorVoxelRenderer:ColorVoxelRenderer;
+        private var _mColorVoxelRenderer:ColorVoxelRenderer;
         private var mParticleRenderer:ParticleRenderer;
         private var mGlyphRenderer:DFGlyphRenderer;
         private var _currentRenderer:int = -1;
@@ -150,14 +157,14 @@ import starling.utils.RectangleUtil;
 
 
 
-            var _voxelVertexData:Vector.<Number> = new <Number>[        0  , 0 ,0,
-                                                                        0  , 1.0, 0,
-                                                                        1.0, 0  , 0,
-                                                                        1.0, 1.0, 0,
-                                                                          0  , 0 ,-1.0,
-                                                                          0  , 1.0, -1.0,
-                                                                          1.0, 0  , -1.0,
-                                                                          1.0, 1.0, -1.0];
+            var _voxelVertexData:Vector.<Number> = new <Number>[        -0.5  , -0.5 ,0.5,
+                                                                        -0.5  , 0.5, 0.5,
+                                                                        0.5, -0.5  , 0.5,
+                                                                        0.5, 0.5, 0.5,
+                                                                        -0.5  , -0.5 ,-0.5,
+                                                                        -0.5  , 0.5, -0.5,
+                                                                        0.5, -0.5  , -0.5,
+                                                                        0.5, 0.5, -0.5];
             var vertexData3D:Vector.<Number> = new <Number>[];
             for(var i:int = 0; i < 60;i++) // overall max buffer sice
             {
@@ -187,23 +194,23 @@ import starling.utils.RectangleUtil;
 
 
 
-            var _normmalUpDown:Vector.<Number> = new <Number>[      0  , -1.0 ,0,
-                                                                    0  , 1.0 ,0,
+            var _normmalUpDown:Vector.<Number> = new <Number>[      0  , 1.0 ,0,
                                                                     0  , -1.0 ,0,
                                                                     0  , 1.0 ,0,
                                                                     0  , -1.0 ,0,
                                                                     0  , 1.0 ,0,
                                                                     0  , -1.0 ,0,
-                                                                    0  , 1.0 ,0];
+                                                                    0  , 1.0 ,0,
+                                                                    0  , -1.0 ,0];
 
-            var _normmalLeftRight:Vector.<Number> = new <Number>[   -1.0  , 0 ,0,
-                                                                   -1.0  , 0 ,0,
-                                                                    1.0  , 0 ,0,
-                                                                    1.0  , 0 ,0,
+            var _normmalLeftRight:Vector.<Number> = new <Number>[   1.0  , 0 ,0,
+                                                                   1.0  , 0 ,0,
                                                                     -1.0  , 0 ,0,
                                                                     -1.0  , 0 ,0,
                                                                     1.0  , 0 ,0,
-                                                                    1.0  , 0 ,0];
+                                                                    1.0  , 0 ,0,
+                                                                    -1.0  , 0 ,0,
+                                                                    -1.0  , 0 ,0];
 
             var vertexNormalData3D:Vector.<Number> = new <Number>[];
             for(var i:int = 0; i < 60;i++) // overall max buffer sice
@@ -275,7 +282,7 @@ import starling.utils.RectangleUtil;
             ApplicationDomain.currentDomain.domainMemory = _vertexConstantsByte;
 
             mColorRenderer = new ColorRenderer(_vertexConstantsByte, this);
-            mColorVoxelRenderer = new ColorVoxelRenderer(_vertexConstantsByte, this);
+            _mColorVoxelRenderer = new ColorVoxelRenderer(_vertexConstantsByte, this);
             mMTBatchImageRenderer = new MultiTextureImageRenderer(_vertexConstantsByte, this);
             mImageRenderer = new ImageRenderer(_vertexConstantsByte, this);
             mTintedImageRenderer = new TintedImageRenderer(_vertexConstantsByte, this)
@@ -583,16 +590,20 @@ import starling.utils.RectangleUtil;
 
            mColorRenderer.draw(quad);
         }
-    public function drawColorVoxel(quad:ColorVoxel):void
-            {
-                if(_currentRenderer != ColorVoxelRenderer.ID)
-                {
-                    finishDraw();
-                    _currentRenderer = ColorVoxelRenderer.ID;
-                }
 
-               mColorVoxelRenderer.draw(quad);
+    private var _zSortDrawList:Array = [];
+    private var _zSortDrawListPointer:int = 0;
+    public function drawColorVoxel(quad:ColorVoxel):void
+        {
+            if(_currentRenderer != ColorVoxelRenderer.ID)
+            {
+                finishDraw();
+                _currentRenderer = ColorVoxelRenderer.ID;
             }
+            _zSortDrawList[_zSortDrawListPointer] = quad;
+            _zSortDrawListPointer++;
+
+        }
         public function drawParticle(e:ParticleEmitter,p:ParticleDisplay):void
         {
             if(_currentRenderer != ParticleRenderer.ID)
@@ -621,7 +632,19 @@ import starling.utils.RectangleUtil;
             mGlyphRenderer.finishDraw();
             mMTBatchImageRenderer.finishDraw();
             mTintedImageRenderer.finishDraw();
-            mColorVoxelRenderer.finishDraw();
+
+            if(_zSortDrawListPointer != 0)
+            {
+                _zSortDrawList.sortOn("zDistance",Array.NUMERIC)
+
+                var i:int =_zSortDrawListPointer-1;
+                for(i; i >= 0; i--)
+                {
+                    _mColorVoxelRenderer.draw(_zSortDrawList[i]);
+                }
+                _zSortDrawListPointer = 0;
+                _mColorVoxelRenderer.finishDraw();
+            }
         }
         // optimized quad rendering
         
@@ -632,8 +655,21 @@ import starling.utils.RectangleUtil;
         {
 
         }
-        
+    private var _camera:Camera;
+        public function setCamera(p_cam:Camera):void
+        {
+            _camera = p_cam;
+        }
+        public function getDistanceToCamera(p_posX:Number, p_posY:Number, p_posZ:Number):Number
+        {
+            var cpos:Vector3d = _camera.position
+            var diffX:Number = p_posX - cpos.x;
+            var diffY:Number = p_posY - cpos.y;
+            var diffZ:Number = p_posZ - cpos.z;
 
+            return  diffX*diffX + diffY*diffY + diffZ*diffZ;
+
+        }
         /** Renders the current quad batch and resets it. */
         public function finishQuadBatch():void
         {
@@ -663,7 +699,7 @@ import starling.utils.RectangleUtil;
             matrix3DRawData[7] = (2*orthographicProjectionY + orthographicProjectionHeight) / orthographicProjectionHeight
 
             mProjectionMatrix.setTo(matrix3DRawData[0], 0, 0, matrix3DRawData[5],
-                    matrix3DRawData[3], matrix3DRawData[7]);
+            matrix3DRawData[3], matrix3DRawData[7]);
            // trace("setProjectionMatrix",orthographicProjectionWidth,orthographicProjectionHeight,orthographicProjectionX,orthographicProjectionY);
             //projectionMatrix3D.copyRawDataFrom(matrix3DRawData);
 
@@ -767,5 +803,9 @@ import starling.utils.RectangleUtil;
         
         /** Indicates the number of stage3D draw calls. */
         public function get drawCount():int { return mDrawCount; }
+
+    public function get mColorVoxelRenderer():ColorVoxelRenderer {
+        return _mColorVoxelRenderer;
     }
+}
 }

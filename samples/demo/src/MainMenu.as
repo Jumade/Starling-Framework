@@ -19,7 +19,6 @@ import scenes.TextScene;
 
     import scenes.TransformContainerHitScene;
     import scenes.TransformContainerScene;
-import scenes.ColorVoxelScene;
 
 import starling.core.Starling;
     import starling.display.Button;
@@ -59,7 +58,6 @@ import starling.text.TextField;
 
             var newScenesToCreate:Array = [
               ["Original Benchmark", BenchmarkScene],
-              ["Color Voxel", ColorVoxelScene],
 
               ["Particles", ParticleScene],
               ["DF TextField", DistanceFieldTextScene],

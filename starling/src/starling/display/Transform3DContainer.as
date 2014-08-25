@@ -6,6 +6,8 @@
  * To change this template use File | Settings | File Templates.
  */
 package starling.display {
+import starling.display.*;
+
 import flash.display.Sprite;
 import flash.display3D.Context3DProgramType;
 import flash.errors.IllegalOperationError;
@@ -71,6 +73,9 @@ public class Transform3DContainer extends DisplayObjectContainer {
             0, 0, far / (near - far), (far * near) / (near - far),
             0, 0, -1, 0
         ];
+
+
+
         updatePositionMatrix();
         updateMatrix();
     }
@@ -152,7 +157,7 @@ public class Transform3DContainer extends DisplayObjectContainer {
         for (var i:int = 0; i < numChildren; ++i) {
             var child:DisplayObject = mChildren[i];
 
-            if (child.mVisible) {
+            if (child.visible) {
                 child.render(support, p_parentUpdateTransform, p_parentUpdateColor, p_draw && hasVisibleArea);
 
             }
